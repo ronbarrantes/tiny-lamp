@@ -40,6 +40,7 @@ uint32_t buttonSince = 0;
 bool scanning = false;
 int16_t scanCount = -1;
 std::atomic<uint16_t> disconnectReason{0};
+bool hasApplication = false;
 
 String connectionFailure() {
   const uint16_t reason = disconnectReason.load();
@@ -108,6 +109,7 @@ void sendPage() {
   if (state == State::connected) {
     const String address = WiFi.localIP().toString();
     page += "<p>Connected to <strong>" + escapeHtml(WiFi.SSID()) + "</strong>.</p>";
+    if (hasApplication) page += F("<p><a href='/editor'>Open the POV picture editor</a></p>");
     page += "<p>Join that Wi-Fi network on your phone or computer, then open "
             "<a href='http://" + address + "'>http://" + address + "</a>.</p>";
     if (isSetupClient() && closeSetup) {
@@ -270,7 +272,7 @@ void handleScan() {
 }
 }  // namespace
 
-void wifiSetupBegin() {
+void wifiSetupBegin(void (*registerRoutes)(WebServer&)) {
   pinMode(bootButtonPin, INPUT_PULLUP);
   WiFi.persistent(false);
   WiFi.setAutoReconnect(false);
@@ -289,6 +291,8 @@ void wifiSetupBegin() {
   server.on("/connect", HTTP_POST, handleConnect);
   server.on("/scan", HTTP_POST, handleScan);
   server.onNotFound([] { server.send(404, "text/plain", "Open http://192.168.4.1/ on the setup Wi-Fi."); });
+  hasApplication = registerRoutes != nullptr;
+  if (registerRoutes) registerRoutes(server);
   server.begin();
   if (haveCredentials) startConnection();
   else startSetup();
