@@ -6,6 +6,8 @@ Tiny Lamp is a personal lamp with 15 WS2812B addressable LEDs and one push butto
 
 The isolated [ESP32-C3 Wi-Fi test](esp32-wifi/README.md) provisions a router connection over a temporary setup network. It builds separately from the lamp firmware.
 
+The [ESP32-C3 lamp and POV editor](esp32-pov/README.md) adds solid colors and animated lamp presets alongside an adjustable pixel grid, saved pictures, timed LED columns, and web/button on/off. It reuses the Wi-Fi setup and builds as its own experiment.
+
 The firmware will be written in C for a Raspberry Pi Pico 2 W, with a later port to ESP32-C3. Keep lamp behavior, the LED driver, board-specific code, Wi-Fi provisioning, and HTTP handlers separate.
 
 The button cycles four presets and toggles the lamp on/off. A setup mode creates a temporary Wi-Fi network and serves a page for entering the home Wi-Fi credentials. Settings and presets persist across boots, and Wi-Fi can be reset without losing presets.
