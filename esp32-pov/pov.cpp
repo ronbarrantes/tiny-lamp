@@ -1,5 +1,6 @@
 #include "pov.h"
 #include "pattern.h"
+#include "lamp.h"
 #include "web_assets.h"
 
 #include <Arduino.h>
@@ -13,6 +14,8 @@ constexpr uint8_t buttonPin = 1;
 constexpr uint32_t debounceMs = 30;
 Pattern pattern;
 Pattern incoming;
+LampSettings lamp;
+bool lampMode = false;
 Preferences storage;
 SemaphoreHandle_t patternMutex = nullptr;
 bool storageReady = false;
@@ -62,17 +65,22 @@ void playbackTask(void*) {
       seenRevision = revision;
       column = 0;
     }
-    const bool sendFrame = changed || (enabled && nowUs - previousFrame >= uint32_t(pattern.columnMs) * 1000) || (wasOn && !enabled);
+    const uint32_t intervalUs = lampMode ? 20000 : uint32_t(pattern.columnMs) * 1000;
+    const uint8_t ledCount = lampMode ? lamp.ledCount : pattern.ledCount;
+    const uint8_t brightness = lampMode ? lamp.brightness : pattern.brightness;
+    const bool sendFrame = changed || (enabled && nowUs - previousFrame >= intervalUs) || (wasOn && !enabled);
     if (sendFrame) {
       size_t symbol = 0;
       // Always clear trailing LEDs when the configured count shrinks.
       for (uint8_t led = 0; led < maxLeds; ++led) {
         Color color{};
-        if (enabled && led < pattern.ledCount) color = pattern.pixels[size_t(column) * pattern.ledCount + led];
+        if (enabled && led < ledCount) {
+          color = lampMode ? lampColor(lamp, led, nowMs) : pattern.pixels[size_t(column) * pattern.ledCount + led];
+        }
         const uint8_t grb[] = {
-          uint8_t(uint16_t(color.green) * pattern.brightness / 100),
-          uint8_t(uint16_t(color.red) * pattern.brightness / 100),
-          uint8_t(uint16_t(color.blue) * pattern.brightness / 100)
+          uint8_t(uint16_t(color.green) * brightness / 100),
+          uint8_t(uint16_t(color.red) * brightness / 100),
+          uint8_t(uint16_t(color.blue) * brightness / 100)
         };
         for (uint8_t value : grb) {
           for (int bit = 7; bit >= 0; --bit) {
@@ -107,7 +115,13 @@ void playbackTask(void*) {
 String stateJson(bool includePattern) {
   xSemaphoreTake(patternMutex, portMAX_DELAY);
   String body = "{\"on\":" + String(powerOn ? "true" : "false") +
-                ",\"ready\":" + String(outputReady ? "true" : "false");
+                ",\"ready\":" + String(outputReady ? "true" : "false") +
+                ",\"mode\":\"" + String(lampMode ? "lamp" : "pov") + "\"";
+  char lampHex[7];
+  snprintf(lampHex, sizeof(lampHex), "%02x%02x%02x", lamp.color.red, lamp.color.green, lamp.color.blue);
+  body += ",\"lamp\":{\"preset\":" + String(uint8_t(lamp.preset)) +
+          ",\"ledCount\":" + String(lamp.ledCount) + ",\"brightness\":" + String(lamp.brightness) +
+          ",\"color\":\"" + String(lampHex) + "\"}";
   if (includePattern) {
     body += ",\"ledCount\":" + String(pattern.ledCount) + ",\"columns\":" + String(pattern.columnCount) +
             ",\"columnMs\":" + String(pattern.columnMs) + ",\"brightness\":" + String(pattern.brightness) + ",\"pixels\":\"";
@@ -138,12 +152,17 @@ void povBegin() {
       storage.getBytes("image-v1", &incoming, sizeof(incoming)) == sizeof(incoming) && validPattern(incoming)) {
     pattern = incoming;
   }
+  lamp.ledCount = pattern.ledCount;
+  LampSettings savedLamp;
+  if (storageReady && storage.getBytesLength("lamp-v1") == sizeof(savedLamp) &&
+      storage.getBytes("lamp-v1", &savedLamp, sizeof(savedLamp)) == sizeof(savedLamp) && validLamp(savedLamp)) lamp = savedLamp;
+  lampMode = storageReady && storage.getUChar("mode", 0) == 1;
   outputReady = rmtInit(ledPin, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_2, 10000000);
   if (outputReady) {
     rmtSetEOT(ledPin, 0);
     outputReady = xTaskCreate(playbackTask, "pov-leds", 6144, nullptr, 2, nullptr) == pdPASS;
   }
-  Serial.println(outputReady ? "POV ready: LED DIN GPIO0, on/off button GPIO1 to GND." : "LED output could not start. Restart the board.");
+  Serial.println(outputReady ? "Lamp/POV ready: LED DIN GPIO0, on/off button GPIO1 to GND." : "LED output could not start. Restart the board.");
 }
 
 void povRegisterRoutes(WebServer& server) {
@@ -167,8 +186,49 @@ void povRegisterRoutes(WebServer& server) {
       server.send(500, "text/plain", "Could not save the picture. The previous picture is still active.");
       return;
     }
+    if (storage.putUChar("mode", 0) != 1) {
+      server.send(500, "text/plain", "Picture saved, but could not select POV mode. Try again.");
+      return;
+    }
     xSemaphoreTake(patternMutex, portMAX_DELAY);
     pattern = incoming;
+    lampMode = false;
+    powerOn = true;
+    ++revision;
+    xSemaphoreGive(patternMutex);
+    server.send(200, "application/json", stateJson(false));
+  });
+  server.on("/api/mode", HTTP_POST, [&server] {
+    if (!outputReady) { server.send(503, "text/plain", "LED output unavailable."); return; }
+    const String mode = server.arg("plain");
+    if (mode != "lamp" && mode != "pov") { server.send(400, "text/plain", "Use lamp or pov."); return; }
+    const bool nextLampMode = mode == "lamp";
+    if (!storageReady || storage.putUChar("mode", nextLampMode ? 1 : 0) != 1) {
+      server.send(500, "text/plain", "Could not save mode. Try again.");
+      return;
+    }
+    xSemaphoreTake(patternMutex, portMAX_DELAY);
+    lampMode = nextLampMode;
+    ++revision;
+    xSemaphoreGive(patternMutex);
+    server.send(200, "application/json", stateJson(false));
+  });
+  server.on("/api/lamp", HTTP_POST, [&server] {
+    if (!outputReady) { server.send(503, "text/plain", "LED output unavailable."); return; }
+    const String body = server.arg("plain");
+    LampSettings nextLamp;
+    if (!parseLamp(body.c_str(), body.length(), nextLamp)) {
+      server.send(400, "text/plain", "Invalid lamp setting. Use preset 0-4, 1-32 LEDs, 1-40% brightness, and an RGB color.");
+      return;
+    }
+    if (!storageReady || storage.putBytes("lamp-v1", &nextLamp, sizeof(nextLamp)) != sizeof(nextLamp) ||
+        storage.putUChar("mode", 1) != 1) {
+      server.send(500, "text/plain", "Could not save lamp settings. Try again.");
+      return;
+    }
+    xSemaphoreTake(patternMutex, portMAX_DELAY);
+    lamp = nextLamp;
+    lampMode = true;
     powerOn = true;
     ++revision;
     xSemaphoreGive(patternMutex);

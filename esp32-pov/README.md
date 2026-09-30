@@ -1,6 +1,19 @@
-# ESP32-C3 POV picture editor
+# ESP32-C3 lamp and POV editor
 
 An independent experiment for the ESP32-C3 Super Mini and a row of WS2812B LEDs. Starts with **11 LEDs × 10 columns**, ten brush colors plus off, and 5 ms per column. The browser page, picture storage, and LED playback run on the ESP32.
+
+The **Lamp** mode lights the stationary strip with a solid color or a preset. **POV picture** mode plays image columns for a moving sweep. Each mode keeps its own saved settings, LED count, and brightness. Switching modes immediately selects that mode's saved output and keeps the current on/off state.
+
+## Lamp mode
+
+1. Click **Lamp** at the top of the page.
+2. Choose **Solid color**, **Fireplace**, **Snow**, **Cozy**, or **Warm**.
+3. Use the color picker for any solid RGB color. Choosing a custom color selects Solid color automatically.
+4. Set the LED count and brightness, then click **Apply lamp**. This saves and starts the setting.
+
+Fireplace blends flickering orange/red embers. Snow fades white sparkles over a dim blue background. Cozy slowly breathes amber over six seconds. Warm is steady golden light. The preview illustrates the selected color; animations run on the actual LED strip.
+
+The on/off switch and physical GPIO1 button control the selected mode. Lamp settings are stored separately from the POV image, and the last selected mode survives reboot. Playback still starts off at boot. An upgrade from the POV-only firmware retains the saved image and Wi-Fi credentials; the first lamp setting uses the existing picture's LED count.
 
 ## Open and use
 
@@ -56,12 +69,16 @@ Replace the USB port with the one shown by `arduino-cli board list`. `editor.htm
 
 `pattern.cpp` validates the uploaded dimensions and column-major RGB data before changing the active picture. `pov.cpp` owns storage, the HTTP API, the RMT LED output, and the debounced physical button. Wi-Fi and picture data use separate NVS namespaces. [Espressif RMT API reference](https://docs.espressif.com/projects/arduino-esp32/en/latest/api/rmt.html).
 
+`lamp.cpp` validates lamp settings and produces solid or animated colors. Lamp mode renders at a 20 ms target interval in the same output task. `/api/lamp` saves lamp settings; `/api/mode` selects Lamp or POV without overwriting either mode's saved settings.
+
 ## Checks
 
 ```sh
 python3 esp32-wifi/tests/test_connection_timer.py
 c++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I esp32-pov esp32-pov/pattern.cpp esp32-pov/tests/pattern_test.cpp -o /tmp/pov-pattern-test
 /tmp/pov-pattern-test
+c++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I esp32-pov esp32-pov/lamp.cpp esp32-pov/tests/lamp_test.cpp -o /tmp/lamp-test
+/tmp/lamp-test
 ```
 
 The editor's DOM test uses jsdom. It can be installed outside the repository:
@@ -73,4 +90,4 @@ NODE_PATH=/tmp/tiny-lamp-ui-test/node_modules node esp32-pov/tests/editor_test.c
 
 Verified on the connected ESP32-C3: compilation and upload, successful router reconnect, editor HTTP response, invalid-upload rejection, picture save/readback, and web on/off. Browser checks via Browse.sh covered desktop and a 390-pixel phone viewport, painting, adding a column, saving, and on/off. The DOM test also checks that resizing preserves pixel coordinates. The parser test checks bounds and invalid input with address and undefined-behavior sanitizers.
 
-Physical LED colors, the breadboard switch, and the moving POV image still need wiring and testing. Start with a few colored pixels, verify row order, then adjust the sweep duration. Reboot to check picture persistence and off-at-boot behavior.
+Lamp checks on the connected board covered all five presets, custom color save/readback, invalid-setting rejection, mode switching, and reboot persistence. The upgrade and subsequent mode changes preserved the existing 15-by-15 POV picture. Host tests check animation colors and parser bounds; browser tests cover Lamp controls and independent settings in both modes. Ron confirmed the original LED playback works. The new animation appearance still needs a visual check on the physical strip.

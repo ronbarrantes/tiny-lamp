@@ -109,7 +109,7 @@ void sendPage() {
   if (state == State::connected) {
     const String address = WiFi.localIP().toString();
     page += "<p>Connected to <strong>" + escapeHtml(WiFi.SSID()) + "</strong>.</p>";
-    if (hasApplication) page += F("<p><a href='/editor'>Open the POV picture editor</a></p>");
+    if (hasApplication) page += F("<p><a href='/editor'>Open lamp controls</a></p>");
     page += "<p>Join that Wi-Fi network on your phone or computer, then open "
             "<a href='http://" + address + "'>http://" + address + "</a>.</p>";
     if (isSetupClient() && closeSetup) {

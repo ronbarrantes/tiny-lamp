@@ -6,7 +6,7 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>POV picture editor</title>
+    <title>Tiny Lamp studio</title>
     <style>
       :root {
         color-scheme: light;
@@ -451,6 +451,126 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
           font-size: 14px;
         }
       }
+      [hidden] {
+        display: none !important;
+      }
+      .mode-bar {
+        display: flex;
+        gap: 6px;
+        padding: 5px;
+        width: max-content;
+        background: #e8ede0;
+        border-radius: 12px;
+        margin-bottom: 22px;
+      }
+      .mode-button {
+        border: 0;
+        border-radius: 9px;
+        padding: 12px 22px;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .mode-button[aria-pressed="true"] {
+        background: #fff;
+        color: var(--ink);
+        box-shadow: 0 2px 5px #20392f0d;
+      }
+      .lamp-preview {
+        padding: 65px 25px 30px;
+        background: radial-gradient(ellipse at center, #fff3d8, #f2f2e8 70%);
+        text-align: center;
+      }
+      #lampStrip {
+        display: flex;
+        justify-content: center;
+        gap: 7px;
+        min-height: 80px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .lamp-led {
+        width: 20px;
+        height: 45px;
+        border-radius: 12px;
+        box-shadow: 0 0 24px currentColor;
+        border: 1px solid #ffffff80;
+      }
+      .lamp-preview p {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 25px 0 0;
+      }
+      .lamp-content {
+        padding: 25px;
+      }
+      #presets {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 30px;
+      }
+      .preset {
+        background: #fff;
+        border: 1px solid var(--line);
+        padding: 15px 12px;
+        text-align: left;
+        border-radius: 12px;
+        color: var(--ink);
+      }
+      .preset[aria-pressed="true"] {
+        border-color: var(--green);
+        background: #f0f6e7;
+        box-shadow: inset 0 0 0 1px var(--green);
+      }
+      .preset strong {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
+      .preset small {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .lamp-color-row {
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      input[type="color"] {
+        width: 80px;
+        height: 43px;
+        padding: 4px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #fff;
+        cursor: pointer;
+      }
+      #lampHex {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 20px;
+        font-variant-numeric: tabular-nums;
+      }
+      .lamp-hint {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+        margin-top: 25px;
+      }
+      @media (max-width: 480px) {
+        #presets {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .lamp-led {
+          width: 13px;
+          height: 35px;
+        }
+        #lampStrip {
+          gap: 5px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -458,7 +578,7 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
       <div class="brand">
         <span class="mark" aria-hidden="true"
           ><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span
-        >Tiny Lamp / POV
+        >Tiny Lamp
       </div>
       <div class="connection">
         <span class="dot" id="connectionDot"></span
@@ -468,16 +588,24 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
     <main>
       <div class="intro">
         <div>
-          <h1>A little light. A whole picture.</h1>
-          <p>
+          <h1>Your light, your way.</h1>
+          <p id="introDescription">
             Paint your picture one pixel at a time. The LED strip plays each
             column in order as you sweep it through the air.
           </p>
         </div>
-        <span class="tag">Persistence of vision</span>
+        <span class="tag" id="modeTag">Persistence of vision</span>
+      </div>
+      <div class="mode-bar" role="group" aria-label="Light mode">
+        <button class="mode-button" id="povMode" aria-pressed="true">
+          POV picture
+        </button>
+        <button class="mode-button" id="lampMode" aria-pressed="false">
+          Lamp
+        </button>
       </div>
       <div class="layout">
-        <section class="card" aria-label="Picture editor">
+        <section class="card" id="povPanel" aria-label="Picture editor">
           <div class="workspace-head">
             <strong>Your picture</strong
             ><span class="badge" id="saved">Loading picture…</span>
@@ -511,6 +639,41 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
             ><span class="direction">PLAYBACK →</span>
           </div>
         </section>
+        <section class="card" id="lampPanel" aria-label="Lamp settings" hidden>
+          <div class="workspace-head">
+            <strong>Your lamp</strong
+            ><span class="badge" id="lampSaved">Loading settings…</span>
+          </div>
+          <div class="lamp-preview">
+            <div id="lampStrip" aria-label="Lamp color preview"></div>
+            <p id="lampDescription">A steady color across every LED.</p>
+          </div>
+          <div class="lamp-content">
+            <label>Choose a setting</label>
+            <div id="presets" role="group" aria-label="Lamp presets"></div>
+            <div class="lamp-color-row">
+              <div>
+                <label for="lampColor">Your own color</label
+                ><input id="lampColor" type="color" value="#ffb347" />
+              </div>
+              <div>
+                <label for="lampLedCount">LED count</label
+                ><input
+                  id="lampLedCount"
+                  type="number"
+                  min="1"
+                  max="32"
+                  value="15"
+                />
+              </div>
+              <span id="lampHex">#ffb347</span>
+            </div>
+            <p class="lamp-hint">
+              Choosing a color selects Solid color. Click Apply lamp to save and
+              start it.
+            </p>
+          </div>
+        </section>
         <aside class="side">
           <section class="card playback">
             <div class="eyebrow">Lamp playback</div>
@@ -528,45 +691,68 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
             <p>The breadboard button switches playback on and off too.</p>
           </section>
           <section class="card settings">
-            <h2>Sweep settings</h2>
-            <div class="setting">
-              <div class="setting-line">
-                <label for="columnMs">Column duration</label
-                ><output id="timingValue">5 ms</output>
+            <div id="povSettings">
+              <h2>Sweep settings</h2>
+              <div class="setting">
+                <div class="setting-line">
+                  <label for="columnMs">Column duration</label
+                  ><output id="timingValue">5 ms</output>
+                </div>
+                <input
+                  id="columnMs"
+                  type="range"
+                  min="2"
+                  max="100"
+                  value="5"
+                /><small>Slower sweep? Give each column more time.</small>
               </div>
-              <input
-                id="columnMs"
-                type="range"
-                min="2"
-                max="100"
-                value="5"
-              /><small>Slower sweep? Give each column more time.</small>
-            </div>
-            <div class="setting">
-              <div class="setting-line">
-                <label for="brightness">Brightness</label
-                ><output id="brightnessValue">20%</output>
+              <div class="setting">
+                <div class="setting-line">
+                  <label for="brightness">Brightness</label
+                  ><output id="brightnessValue">20%</output>
+                </div>
+                <input
+                  id="brightness"
+                  type="range"
+                  min="1"
+                  max="40"
+                  value="20"
+                /><small id="sweepSummary">One picture takes 50 ms.</small>
               </div>
-              <input
-                id="brightness"
-                type="range"
-                min="1"
-                max="40"
-                value="20"
-              /><small id="sweepSummary">One picture takes 50 ms.</small>
+              <button class="send" id="send" disabled>
+                Send picture to lamp
+              </button>
+              <p class="save-note">
+                Saves your picture and starts playback.<br />The lamp starts off
+                after a restart.
+              </p>
             </div>
-            <button class="send" id="send" disabled>
-              Send picture to lamp
-            </button>
-            <p class="save-note">
-              Saves your picture and starts playback.<br />The lamp starts off
-              after a restart.
-            </p>
+            <div id="lampSettings" hidden>
+              <h2>Lamp brightness</h2>
+              <div class="setting">
+                <div class="setting-line">
+                  <label for="lampBrightness">Brightness</label
+                  ><output id="lampBrightnessValue">20%</output>
+                </div>
+                <input
+                  id="lampBrightness"
+                  type="range"
+                  min="1"
+                  max="40"
+                  value="20"
+                /><small>Keep it low for a soft glow.</small>
+              </div>
+              <button class="send" id="applyLamp" disabled>Apply lamp</button>
+              <p class="save-note">
+                Saves this setting and turns the lamp on.<br />The lamp starts
+                off after a restart.
+              </p>
+            </div>
             <p id="message" role="status" aria-live="polite"></p>
           </section>
         </aside>
       </div>
-      <p class="how">
+      <p class="how" id="povHelp">
         <strong>First sweep?</strong> Paint a few bright pixels, send the
         picture, then move the strip sideways. Adjust column duration to match
         your movement. LED 1 is the first LED connected to the data wire, shown
@@ -588,6 +774,42 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
         ["White", "ffffff"],
         ["Off / erase", "000000"],
       ];
+      const presets = [
+        [
+          "Solid color",
+          "Make it yours",
+          "ffb347",
+          "A steady color across every LED.",
+        ],
+        [
+          "Fireplace",
+          "Flickering embers",
+          "ff7a20",
+          "Warm embers flicker gently along the strip.",
+        ],
+        [
+          "Snow",
+          "Cool little sparkles",
+          "a6d8ff",
+          "Soft white sparkles over a cool blue glow.",
+        ],
+        [
+          "Cozy",
+          "A slow amber breath",
+          "ff8e38",
+          "A soft amber glow that slowly breathes.",
+        ],
+        [
+          "Warm",
+          "Steady golden light",
+          "ffaa5f",
+          "Steady, warm golden light for everyday use.",
+        ],
+      ];
+      let lamp = { preset: 0, ledCount: 15, brightness: 20, color: "ffb347" };
+      let mode = "pov",
+        lampDirty = false,
+        lampEditVersion = 0;
       const byId = (id) => document.getElementById(id);
       let picture = {
         ledCount: 11,
@@ -613,6 +835,125 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
         editVersion++;
         byId("saved").textContent = "Unsaved edits";
       }
+      function lampEdited() {
+        lampDirty = true;
+        lampEditVersion++;
+        byId("lampSaved").textContent = "Unsaved edits";
+        renderLamp();
+      }
+      function renderLamp() {
+        byId("presets").replaceChildren();
+        presets.forEach(([name, description], index) => {
+          const button = document.createElement("button");
+          button.className = "preset";
+          button.setAttribute("aria-pressed", String(lamp.preset === index));
+          button.setAttribute("aria-label", name);
+          const title = document.createElement("strong");
+          title.textContent = name;
+          const detail = document.createElement("small");
+          detail.textContent = description;
+          button.append(title, detail);
+          button.onclick = () => {
+            lamp.preset = index;
+            lampEdited();
+          };
+          byId("presets").append(button);
+        });
+        const color =
+          "#" + (lamp.preset === 0 ? lamp.color : presets[lamp.preset][2]);
+        byId("lampStrip").replaceChildren();
+        for (let i = 0; i < lamp.ledCount; i++) {
+          const led = document.createElement("span");
+          led.className = "lamp-led";
+          led.style.backgroundColor = color;
+          led.style.color = color;
+          byId("lampStrip").append(led);
+        }
+        byId("lampDescription").textContent = presets[lamp.preset][3];
+        byId("lampColor").value = "#" + lamp.color;
+        byId("lampLedCount").value = lamp.ledCount;
+        byId("lampHex").textContent = "#" + lamp.color;
+        byId("lampBrightness").value = lamp.brightness;
+        byId("lampBrightnessValue").textContent = lamp.brightness + "%";
+      }
+      function renderMode() {
+        const isLamp = mode === "lamp";
+        byId("povPanel").hidden = isLamp;
+        byId("lampPanel").hidden = !isLamp;
+        byId("povSettings").hidden = isLamp;
+        byId("lampSettings").hidden = !isLamp;
+        byId("povHelp").hidden = isLamp;
+        byId("povMode").setAttribute("aria-pressed", String(!isLamp));
+        byId("lampMode").setAttribute("aria-pressed", String(isLamp));
+        byId("modeTag").textContent = isLamp
+          ? "Everyday light"
+          : "Persistence of vision";
+        byId("introDescription").textContent = isLamp
+          ? "Choose a steady color or a gentle animation. No movement needed. Just a little light, the way you like it."
+          : "Paint your picture one pixel at a time. The LED strip plays each column in order as you sweep it through the air.";
+      }
+      byId("lampColor").oninput = () => {
+        lamp.color = byId("lampColor").value.slice(1);
+        lamp.preset = 0;
+        lampEdited();
+      };
+      byId("lampBrightness").oninput = () => {
+        lamp.brightness = Number(byId("lampBrightness").value);
+        lampEdited();
+      };
+      byId("lampLedCount").onchange = () => {
+        const count = Number(byId("lampLedCount").value);
+        if (!Number.isInteger(count) || count < 1 || count > 32) {
+          byId("lampLedCount").value = lamp.ledCount;
+          return;
+        }
+        lamp.ledCount = count;
+        lampEdited();
+      };
+      async function selectMode(nextMode) {
+        if (mode === nextMode || !loaded || !ready || busy) return;
+        busy = true;
+        controls();
+        try {
+          powerState(await api("/api/mode", nextMode));
+          message(
+            nextMode === "lamp"
+              ? "Lamp mode selected. Apply your settings when ready."
+              : "POV mode selected. Your picture is still here.",
+          );
+        } catch (error) {
+          message(error.message, true);
+        } finally {
+          busy = false;
+          controls();
+        }
+      }
+      byId("povMode").onclick = () => selectMode("pov");
+      byId("lampMode").onclick = () => selectMode("lamp");
+      byId("applyLamp").onclick = async () => {
+        busy = true;
+        controls();
+        message("Saving lamp settings…");
+        const version = lampEditVersion;
+        const body = `${lamp.preset},${lamp.ledCount},${lamp.brightness}\n${lamp.color}`;
+        try {
+          powerState(await api("/api/lamp", body));
+          if (version === lampEditVersion) {
+            lampDirty = false;
+            byId("lampSaved").textContent = "Saved on lamp";
+          }
+          message(
+            version === lampEditVersion
+              ? "Lamp setting saved and switched on."
+              : "Saved the sent settings. Newer edits have not been applied.",
+          );
+        } catch (error) {
+          message(error.message, true);
+        } finally {
+          busy = false;
+          controls();
+        }
+      };
       function renderPalette() {
         byId("palette").replaceChildren();
         for (const [name, color] of colors) {
@@ -782,12 +1123,20 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
       function controls() {
         byId("send").disabled = !loaded || !ready || busy;
         byId("power").disabled = !loaded || !ready || busy;
+        for (const id of ["applyLamp", "povMode", "lampMode"])
+          byId(id).disabled = !loaded || !ready || busy;
       }
       function powerState(state) {
         on = state.on;
+        mode = state.mode || "pov";
+        renderMode();
         ready = state.ready;
         byId("power").setAttribute("aria-checked", String(on));
-        byId("powerLabel").textContent = on ? "Playing" : "Off";
+        byId("powerLabel").textContent = on
+          ? mode === "lamp"
+            ? "On"
+            : "Playing"
+          : "Off";
         byId("connection").textContent = ready
           ? "Connected to lamp"
           : "LED output unavailable";
@@ -825,9 +1174,7 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
         controls();
         try {
           powerState(await api("/api/power", on ? "off" : "on"));
-          message(
-            on ? "Playing the picture saved on the lamp." : "Playback stopped.",
-          );
+          message(on ? "Light switched on." : "Light switched off.");
         } catch (error) {
           message(error.message, true);
         } finally {
@@ -850,6 +1197,11 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
               byId(id).value = picture[id];
             renderGrid();
             byId("saved").textContent = "Saved on lamp";
+          }
+          if (!lampDirty) {
+            lamp = state.lamp || { ...lamp, ledCount: state.ledCount };
+            renderLamp();
+            byId("lampSaved").textContent = "Saved on lamp";
           }
           loaded = true;
           powerState(state);
@@ -879,13 +1231,15 @@ static const char editorHtml[] PROGMEM = R"POV_HTML(<!doctype html>
         }
       }
       window.addEventListener("beforeunload", (event) => {
-        if (dirty) {
+        if (dirty || lampDirty) {
           event.preventDefault();
           event.returnValue = "";
         }
       });
       renderPalette();
       renderGrid();
+      renderLamp();
+      renderMode();
       load();
       setInterval(poll, 2000);
     </script>

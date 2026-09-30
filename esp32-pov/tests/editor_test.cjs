@@ -4,6 +4,8 @@ const { JSDOM } = require("jsdom");
 let state = {
   on: false,
   ready: true,
+  mode: "pov",
+  lamp: { preset: 0, ledCount: 15, brightness: 20, color: "ffb347" },
   ledCount: 11,
   columns: 10,
   columnMs: 5,
@@ -37,12 +39,21 @@ const dom = new JSDOM(html, {
             brightness,
             pixels,
             on: true,
+            mode: "pov",
           };
         } else if (path === "/api/power") state.on = options.body === "on";
+        else if (path === "/api/mode") state.mode = options.body;
+        else if (path === "/api/lamp") {
+          const [header, color] = options.body.split("\n");
+          const [preset, ledCount, brightness] = header.split(",").map(Number);
+          state.lamp = { preset, ledCount, brightness, color };
+          state.mode = "lamp";
+          state.on = true;
+        }
       }
       return {
         ok: true,
-        json: async () => ({ ...state }),
+        json: async () => JSON.parse(JSON.stringify(state)),
         text: async () => "",
       };
     };
@@ -76,9 +87,40 @@ const wait = () => new Promise((resolve) => setImmediate(resolve));
   await wait();
   assert.equal(state.on, false);
   assert.equal(doc.getElementById("powerLabel").textContent, "Off");
+  const savedPixels = state.pixels;
+  doc.getElementById("lampMode").click();
+  await wait();
+  assert.equal(state.mode, "lamp");
+  assert.equal(doc.getElementById("povPanel").hidden, true);
+  assert.equal(doc.getElementById("lampPanel").hidden, false);
+  assert.equal(doc.querySelectorAll(".lamp-led").length, 15);
+  assert.equal(doc.querySelectorAll(".preset").length, 5);
+  doc.querySelector('[aria-label="Fireplace"]').click();
+  assert.equal(state.lamp.preset, 0, "preview must not change saved settings");
+  doc.getElementById("applyLamp").click();
+  await wait();
+  assert.equal(state.lamp.preset, 1);
+  assert.equal(state.on, true);
+  assert.equal(doc.getElementById("powerLabel").textContent, "On");
+  doc.getElementById("lampColor").value = "#12abcd";
+  doc.getElementById("lampColor").dispatchEvent(new dom.window.Event("input"));
+  doc.getElementById("applyLamp").click();
+  await wait();
+  assert.equal(state.lamp.preset, 0, "custom color selects solid mode");
+  assert.equal(state.lamp.color, "12abcd");
+  doc.getElementById("povMode").click();
+  await wait();
+  assert.equal(state.mode, "pov");
+  assert.equal(
+    state.pixels,
+    savedPixels,
+    "lamp mode must preserve the POV picture",
+  );
+  assert.equal(doc.getElementById("povPanel").hidden, false);
+  assert.equal(doc.getElementById("lampPanel").hidden, true);
   dom.window.close();
   console.log(
-    "PASS: pixel painting, palette, added columns, resize preserves coordinates, upload, on/off",
+    "PASS: POV editing, upload, power, lamp presets, custom color, mode switching preserves picture",
   );
 })().catch((error) => {
   dom.window.close();
