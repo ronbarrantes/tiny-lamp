@@ -27,13 +27,13 @@ Use the **GPIO numbers printed on your board**, rather than counting header posi
 
 | ESP32-C3 / supply | Connect to |
 | --- | --- |
-| **GPIO4** | LED chain **DIN**, preferably through a 74AHCT125 level shifter and a 330 Ω series resistor |
-| **GPIO5** | One side of a momentary on/off button |
+| **GPIO0 / IO0** | LED chain **DIN**, preferably through a 74AHCT125 level shifter and a 330 Ω series resistor |
+| **GPIO1 / IO1** | One side of a momentary on/off button |
 | **GND** | Other side of the button, LED GND, and supply GND |
 | Regulated **5 V supply** | LED **5V / VCC** |
 | **USB** | ESP32 power and flashing |
 
-GPIO5 uses the ESP32's internal pull-up. Pressing the button connects it to ground; no external pull-up is needed. For a four-leg switch, use one leg from each electrically separate pair. Debouncing is 30 ms, and a held press toggles once.
+GPIO1 uses the ESP32's internal pull-up. Pressing the button connects it to ground; no external pull-up is needed. For a four-leg switch, use one leg from each electrically separate pair. Debouncing is 30 ms, and a held press toggles once. Leave the header pin labeled RST unconnected; it is the board reset signal.
 
 Keep GPIO9 for the board's BOOT button. Hold it for five seconds while running to erase Wi-Fi settings and reopen setup. RESET reboots and turns playback off without erasing the saved picture.
 

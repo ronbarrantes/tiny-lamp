@@ -8,8 +8,8 @@
 #include <esp32-hal-rmt.h>
 
 namespace {
-constexpr uint8_t ledPin = 4;
-constexpr uint8_t buttonPin = 5;
+constexpr uint8_t ledPin = 0;
+constexpr uint8_t buttonPin = 1;
 constexpr uint32_t debounceMs = 30;
 Pattern pattern;
 Pattern incoming;
@@ -143,7 +143,7 @@ void povBegin() {
     rmtSetEOT(ledPin, 0);
     outputReady = xTaskCreate(playbackTask, "pov-leds", 6144, nullptr, 2, nullptr) == pdPASS;
   }
-  Serial.println(outputReady ? "POV ready: LED DIN GPIO4, on/off button GPIO5 to GND." : "LED output could not start. Restart the board.");
+  Serial.println(outputReady ? "POV ready: LED DIN GPIO0, on/off button GPIO1 to GND." : "LED output could not start. Restart the board.");
 }
 
 void povRegisterRoutes(WebServer& server) {
