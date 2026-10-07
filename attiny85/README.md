@@ -1,6 +1,6 @@
 # ATtiny85 lamp
 
-This firmware drives 15 WS2812B LEDs from one rotary encoder with a push switch. The lamp holds one HSV color. Each LED sways softly darker, drifts slightly in hue, and dips in saturation, like embers. Tune the amounts with `SWAY_DEPTH`, `HUE_SWAY`, and `SAT_SWAY`.
+This firmware drives 12 WS2812B LEDs from one rotary encoder with a push switch. The lamp holds one HSV color. Each LED sways softly darker, drifts slightly in hue, and dips in saturation, like embers. Tune the amounts with `SWAY_DEPTH`, `HUE_SWAY`, and `SAT_SWAY`.
 
 ## Controls
 

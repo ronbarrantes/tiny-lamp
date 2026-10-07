@@ -5,7 +5,7 @@
 #include <util/atomic.h>
 #include <util/delay.h>
 
-#define LED_COUNT 15u
+#define LED_COUNT 12u
 #define LED_PIN PB0
 #define BUTTON_PIN PB1
 #define ENCODER_A_PIN PB3
@@ -18,7 +18,7 @@
 #define DIM_VALUE 32u     /* Below this brightness, LEDs switch off one by one */
 #define MIN_LIT 3u        /* LEDs still lit at the lowest brightness */
 #define SWAY_DEPTH 160u   /* Deepest brightness dip, out of 255 (about 60%) */
-#define HUE_SWAY 8        /* Hue drifts this far either way, out of 256 */
+#define HUE_SWAY 7        /* Hue drifts this far either way, out of 256 */
 #define SAT_SWAY 30u      /* Deepest saturation dip, out of 255 */
 #define FRAME_MS 20u
 #define DEBOUNCE_POLLS 20u /* About 20 ms */
